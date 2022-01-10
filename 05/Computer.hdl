@@ -20,4 +20,17 @@ CHIP Computer {
 
     PARTS:
     // Put your code here:
+    ROM32K(address=pc,out=instruction);
+    CPU(
+        inM=inM,                  // M value input  (M = contents of RAM[A])
+        instruction = instruction, // Instruction for execution
+        reset = reset,        // Signals whether to re-start the current
+        outM = outM,          // M value output
+        writeM = writeM,      // Write to M? 
+        addressM = addressM,  // Address in data memory (of M)
+        pc = pc               // address of next instruction
+    );
+    Memory(
+    in = outM, load=writeM, address = addressM,
+    out = inM);
 }
