@@ -40,4 +40,43 @@ CHIP CPU {
 
     PARTS:
     // Put your code here:
+    Mux16(a = instruction,b = aluout, sel=instruction[15], out=ain);
+    Not(in=instruction[15], out=aCmd);
+    Or(a=aCmd, b=instruction[5], out=aLoad);
+
+    ARegister(in=ain, load=aLoad, out=a, out[0..14]=addressM);
+
+    Mux16(a=a, b=inM, sel=instruction[12], out=am);
+
+    And(a=instruction[15],b=instruction[4],out=dload);
+    DRegister(in=aluout, load=dload, out=dout);
+
+    ALU(x=dout , y=am,  // 16-bit inputs        
+        zx=instruction[11], // zero the x input?
+        nx=instruction[10], // negate the x input?
+        zy=instruction[9], // zero the y input?
+        ny=instruction[8], // negate the y input?
+        f=instruction[7],  // compute out = x + y (if 1) or x & y (if 0)
+        no=instruction[6], // negate the out output?)
+        out=aluout, // 16-bit output
+        out=outM,
+        zr=zout, // 1 if (out == 0), 0 otherwise
+        ng=nout); // 1 if (out < 0),  0 otherwise
+
+    // dest領域の仕様 P72 図4-4参照
+    And(a=instruction[3], b=instruction[15], out=writeM);
+    
+    // jump領域の仕様 P73 図4-5参照
+    And(a=nout, b=instruction[2], out=j1);
+    And(a=zout, b=instruction[1], out=j2);
+    Or(a=nout, b=zout, out=notplus);
+    Not(in=notplus, out=plus);
+    And(a=plus, b=instruction[0], out=j3);
+
+    Or(a=j1, b=j2, out=j12);
+    Or(a=j12, b=j3, out=j123);
+    And(a=j123, b=instruction[15], out=pcLoad);
+    Not(in=pcLoad, out=pcInc);
+    PC(in=a, inc=pcInc, load=pcLoad, reset=reset, out[0..14]=pc);
+
 }
