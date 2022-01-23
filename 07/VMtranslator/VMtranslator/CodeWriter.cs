@@ -15,6 +15,8 @@ namespace VMtranslator
     {
         private StreamWriter sw;
         private int line = 0;
+
+
         /// <summary>
         /// コンストラクタ
         /// 出力ファイルを開き書き込む準備を行う
@@ -29,110 +31,123 @@ namespace VMtranslator
         /// 新しいVMファイルの変換開始を知らせる
         /// </summary>
         internal string FileName { set; get; }
+        public Dictionary<string, string> arithmeticAsmDict = new Dictionary<string, string>()
+        {
+            {"add", "M=M+D" },{"sub","M=M-D"},{"neg","M=-M"},{"and","M=M&D"},{"or","M=M|D"},{"not","M=!M" }
+        };
+        public Dictionary<string, string> binaryOperatorAsmDict = new Dictionary<string, string>()
+        {
+             {"add", "M=M+D" },{"sub","M=M-D"},{"and","M=M&D"},{"or","M=M|D"}
+        };
+        public Dictionary<string, string> binaryConditionAsmDict = new Dictionary<string, string>()
+        {
+            {"eq", "D;JEQ" },{"gt","D;JGT"},{"lt","D;JLT"}
+        };
+
         /// <summary>
         /// 与えられた算術コマンドをアセンブリコードに変換し、書き込む
         /// </summary>
-        /// <param name="command"></param>
+        /// <param name="command">コマンド</param>
         internal void writeArithmetic(string command)
         {
-            switch (command)
+            sw.WriteLine($"//{command}");
+            sw.WriteLine(decrement_stack_adress());
+            sw.WriteLine(set_address_stack());
+
+            if (arithmeticAsmDict.ContainsKey(command))
             {
-                case "add":
-                    decrement_stack_adress();
-                    set_address_stack();
-                    sw.WriteLineAsync("D=M");
-                    decrement_stack_adress();
-                    set_address_stack();
-                    sw.WriteLineAsync("M=M+D");
-                    break;
-                case "sub":
-                    sw.WriteLineAsync("M=M-D");
-                    break;
-                case "neg":
-                    sw.WriteLineAsync("-M");
-                    break;
-                case "and":
-                    sw.WriteLineAsync("M=M&D");
-                    break;
-                case "or":
-                    sw.WriteLineAsync("M=M|D");
-                    break;
-                case "not":
-                    sw.WriteLineAsync("!M");
-                    break;
-               default:
-                    sw.WriteLineAsync("D=M-D");
-                    sw.WriteLineAsync($"@TRUE_{line}");
+                if (binaryOperatorAsmDict.ContainsKey(command))
+                {
+                    sw.WriteLine("D=M");
+                    sw.WriteLine(decrement_stack_adress());
+                }
+                
+                sw.WriteLine(set_address_stack());
+                sw.WriteLine(arithmeticAsmDict[command]);
 
-                    switch (command)
-                    {
-                        case "eq":
-                            sw.WriteLineAsync("D; JEQ");
-                            break;
-                        case "gt":
-                            sw.WriteLineAsync("D; JGT");
-                            break;
-                        case "lt":
-                            sw.WriteLineAsync("D; JLT");
-                            break;
-                    }
-
-                    sw.WriteLineAsync("M=0"); // VMはfalseを0で返す
-                    sw.WriteLineAsync($"(TRUE_{line})");
-                    sw.WriteLineAsync("M=-1"); // VMはtrueを-1で返す
-                    break;
             }
-            increment_stack_address();
+            if (binaryConditionAsmDict.ContainsKey(command))
+            {
+                sw.WriteLine("D=M");
+                sw.WriteLine(decrement_stack_adress());
+                sw.WriteLine(set_address_stack());
+                sw.WriteLine("D=M-D");
+                sw.WriteLine($"@TRUE_{line}");
+                sw.WriteLine(binaryConditionAsmDict[command]);
+                sw.WriteLine($"@FALSE_{line}");
+                sw.WriteLine("0;JMP");
+                sw.WriteLine($"(TRUE_{line})");
+                sw.WriteLine(set_address_stack());
+                sw.WriteLine("M=-1"); // VMはtrueを-1で返す
+                sw.WriteLine($"@END_{line}");
+                sw.WriteLine("0;JMP");
+                sw.WriteLine($"(FALSE_{line})");
+                sw.WriteLine(set_address_stack());
+                sw.WriteLine("M=0"); // VMはfalseを0で返す
+                sw.WriteLine($"(END_{line})");
+            }
+
+            sw.WriteLine(increment_stack_address());
             line++;
         }
         /// <summary>
         /// C_PUSHまたはC_POPコマンドをアセンブリコードに変換し、書き込む
         /// </summary>
-        /// <param name="command"></param>
+        /// <param name="command">コマンド</param>
+        /// <param name="segment">セグメント</param>
+        /// <param name="index">インデックス</param>
         internal void writePushPop(Type command, string segment, int index)
         {
             string line = string.Empty;
             if (command == typeof(C_PUSH))
             {
-                sw.WriteLineAsync($"@{index}");
+                sw.WriteLine($"@{index}");
                 if (segment == "constant")
                 {
-                    sw.WriteLineAsync("D=A"); // 定数の代入はAレジスタ
+                    sw.WriteLine("D=A"); // 定数の代入はAレジスタ
                 }
                 else
                 {
-                    sw.WriteLineAsync("D=M");
+                    sw.WriteLine("D=M");
                 }
-                push_stack();
+                sw.WriteLine(push_stack());
             }
+            sw.WriteLine(increment_stack_address());
         }
         /// <summary>
         /// スタックポインタを１つ進める
         /// </summary>
-        private void increment_stack_address()
+        private string increment_stack_address()
         {
-            sw.WriteLineAsync("@SP");
-            sw.WriteLineAsync("M=M+1");
+            StringBuilder stringBuilder = new StringBuilder();
+            stringBuilder.AppendLine("@SP");
+            stringBuilder.AppendLine("M=M+1");
+            return stringBuilder.ToString();
         }
         /// <summary>
         /// スタックポインタを１つ戻す
         /// </summary>
-        private void decrement_stack_adress()
+        private string decrement_stack_adress()
         {
-            sw.WriteLineAsync("@SP");
-            sw.WriteLineAsync("M=M-1");
+            StringBuilder stringBuilder = new StringBuilder();
+            stringBuilder.AppendLine("@SP");
+            stringBuilder.AppendLine("M=M-1");
+            return stringBuilder.ToString();
         }
-        private void set_address_stack()
+        private string set_address_stack()
         {
-            sw.WriteLineAsync("@SP");
-            sw.WriteLineAsync("A=M");
+            StringBuilder stringBuilder = new StringBuilder();
+            stringBuilder.AppendLine("@SP");
+            stringBuilder.AppendLine("A=M");
+            return stringBuilder.ToString();
         }
-        private void push_stack()
+        private string push_stack()
         {
-            sw.WriteLineAsync("@SP");
-            sw.WriteLineAsync("A=M");
-            sw.WriteLineAsync("M=D");
-            increment_stack_address();
+            StringBuilder stringBuilder = new StringBuilder();
+            stringBuilder.AppendLine("@SP");
+            stringBuilder.AppendLine("A=M");
+            stringBuilder.AppendLine("M=D");
+            return stringBuilder.ToString();
         }
 
         internal void close()

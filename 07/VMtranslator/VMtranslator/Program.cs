@@ -18,7 +18,7 @@ namespace VMtranslator
             string outFile = string.Empty;
 #if DEBUG
             List<string> list = new List<string>();
-            args = list.Append(@"C:\Users\user\OneDrive\デスクトップ\コンピュータシステムの理論と実装\nand2tetris\projects\07\StackArithmetic\SimpleAdd").ToArray();
+            args = list.Append(@"C:\Users\user\OneDrive\デスクトップ\コンピュータシステムの理論と実装\nand2tetris\projects\07\StackArithmetic\StackTest").ToArray();
 #endif
             // 起動引数チェック
             if (args.Length != 1)
