@@ -31,17 +31,21 @@ namespace VMtranslator
         /// 新しいVMファイルの変換開始を知らせる
         /// </summary>
         internal string FileName { set; get; }
-        public Dictionary<string, string> arithmeticAsmDict = new Dictionary<string, string>()
+        private Dictionary<string, string> arithmeticAsmDict = new Dictionary<string, string>()
         {
             {"add", "M=M+D" },{"sub","M=M-D"},{"neg","M=-M"},{"and","M=M&D"},{"or","M=M|D"},{"not","M=!M" }
         };
-        public Dictionary<string, string> binaryOperatorAsmDict = new Dictionary<string, string>()
+        private Dictionary<string, string> binaryOperatorAsmDict = new Dictionary<string, string>()
         {
              {"add", "M=M+D" },{"sub","M=M-D"},{"and","M=M&D"},{"or","M=M|D"}
         };
-        public Dictionary<string, string> binaryConditionAsmDict = new Dictionary<string, string>()
+        private Dictionary<string, string> binaryConditionAsmDict = new Dictionary<string, string>()
         {
             {"eq", "D;JEQ" },{"gt","D;JGT"},{"lt","D;JLT"}
+        };
+        private Dictionary<string, string> memoryAsmDict = new Dictionary<string, string>()
+        {
+            {"argument","ARG"},{"local","LCL"},{"this","THIS"},{"that","THAT" },{ "pointer","3"},{"temp","5"},{"constant",""}
         };
 
         /// <summary>
@@ -98,10 +102,32 @@ namespace VMtranslator
         /// <param name="index">インデックス</param>
         internal void writePushPop(Type command, string segment, int index)
         {
-            string line = string.Empty;
-            if (command == typeof(C_PUSH))
+            sw.WriteLine($"//{command}");
+            string address = memoryAsmDict[segment];
+            if ((segment == "local") |
+                (segment == "argument") |
+                (segment == "this") |
+                (segment == "that"))
+            {
+
+                sw.WriteLine($"@{address}");
+                sw.WriteLine("D=M");
+                sw.WriteLine($"@{index}");
+                sw.WriteLine("A=D+A");
+            }
+            else if ((segment == "pointer") |
+                (segment == "temp"))
+            {
+                sw.WriteLine($"@R{ int.Parse(address) + index}");
+                sw.WriteLine("D=A");
+            }
+            else if (segment == "constant")
             {
                 sw.WriteLine($"@{index}");
+            }
+
+            if (command == typeof(C_PUSH))
+            {
                 if (segment == "constant")
                 {
                     sw.WriteLine("D=A"); // 定数の代入はAレジスタ
@@ -111,8 +137,19 @@ namespace VMtranslator
                     sw.WriteLine("D=M");
                 }
                 sw.WriteLine(push_stack());
+                sw.WriteLine(increment_stack_address());
             }
-            sw.WriteLine(increment_stack_address());
+            else if (command == typeof(C_POP))
+            {
+                sw.WriteLine($"@R13");
+                sw.WriteLine("M=D"); // memory set
+                sw.WriteLine(decrement_stack_adress());
+                sw.WriteLine(set_address_stack());
+                sw.WriteLine("D=M");
+                sw.WriteLine($"@R13");
+                sw.WriteLine("A=M");
+                sw.WriteLine("M=D");
+            }
         }
         /// <summary>
         /// スタックポインタを１つ進める
