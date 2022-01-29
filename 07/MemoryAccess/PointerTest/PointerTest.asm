@@ -62,7 +62,7 @@ M=M+1
 @THIS
 D=M
 @2
-A=D+A
+D=D+A
 @R13
 M=D
 @SP
@@ -89,7 +89,7 @@ M=M+1
 @THAT
 D=M
 @6
-A=D+A
+D=D+A
 @R13
 M=D
 @SP

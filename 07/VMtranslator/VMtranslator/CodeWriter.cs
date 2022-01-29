@@ -112,8 +112,17 @@ namespace VMtranslator
 
                 sw.WriteLine($"@{address}");
                 sw.WriteLine("D=M");
-                sw.WriteLine($"@{index}");
-                sw.WriteLine("A=D+A");
+                if (command == typeof(C_PUSH))
+                {
+                    sw.WriteLine($"@{index}");
+                    sw.WriteLine("A=D+A");
+                }
+                else
+                {
+                    sw.WriteLine($"@{index}");
+                    sw.WriteLine("D=D+A");
+                }
+                    
             }
             else if ((segment == "pointer") |
                 (segment == "temp"))
