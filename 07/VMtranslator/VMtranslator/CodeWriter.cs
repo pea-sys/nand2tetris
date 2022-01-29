@@ -45,7 +45,7 @@ namespace VMtranslator
         };
         private Dictionary<string, string> memoryAsmDict = new Dictionary<string, string>()
         {
-            {"argument","ARG"},{"local","LCL"},{"this","THIS"},{"that","THAT" },{ "pointer","3"},{"temp","5"},{"constant",""}
+            {"argument","ARG"},{"local","LCL"},{"this","THIS"},{"that","THAT" },{ "pointer","3"},{"temp","5"},{"constant","constant"},{"static","static"}
         };
 
         /// <summary>
@@ -133,6 +133,21 @@ namespace VMtranslator
             else if (segment == "constant")
             {
                 sw.WriteLine($"@{index}");
+            }
+            else if (segment == "static")
+            {
+                sw.WriteLine($"@{ FileName + "." + line}");
+                sw.WriteLine("D=M");
+                if (command == typeof(C_PUSH))
+                {
+                    sw.WriteLine($"@{index}");
+                    sw.WriteLine("A=D+A");
+                }
+                else
+                {
+                    sw.WriteLine($"@{index}");
+                    sw.WriteLine("D=D+A");
+                }
             }
 
             if (command == typeof(C_PUSH))
