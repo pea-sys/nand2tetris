@@ -25,8 +25,8 @@ namespace VMtranslator
         internal CodeWriter(string path)
         {
             sw = new StreamWriter(path);
+            writeInit();
             line = 0;
-            //writeInit();
         }
         /// <summary>
         /// 新しいVMファイルの変換開始を知らせる
@@ -70,8 +70,8 @@ namespace VMtranslator
         /// <param name="label">ラベル</param>
         internal void writeLabel(string label)
         {
-            sw.WriteLine($"//label {label}");
-            sw.WriteLine($"({label})");
+            sw.WriteLine($"//label {FileName}${label}");
+            sw.WriteLine($"({FileName}${label})");
         }
         /// <summary>
         /// gotoコマンドを行うアセンブリコードに変換し、書き込む
@@ -80,7 +80,7 @@ namespace VMtranslator
         internal void writeGoto(string label)
         {
             sw.WriteLine($"//goto {label}");
-            sw.WriteLine($"@{label}");
+            sw.WriteLine($"@{FileName}${label}");
             sw.WriteLine("0;JMP");
         }
         /// <summary>
@@ -91,7 +91,7 @@ namespace VMtranslator
         {
             sw.WriteLine($"//if {label}");
             sw.WriteLine(pop_stack_to_D());
-            sw.WriteLine($"@${label}");
+            sw.WriteLine($"@{FileName}${label}");
             sw.WriteLine("D;JNE");
         }
                 /// <summary>
@@ -101,29 +101,32 @@ namespace VMtranslator
         /// <param name="numArgs"></param>
         internal void writeCall(string functionName, int numArgs)
         {
-            string labelName = "RETURN_" + (call_count++).ToString();
+            string labelName = functionName + "RET" + (call_count++).ToString();
             sw.WriteLine($"//call {functionName}.{numArgs}");
             sw.WriteLine($"@{labelName}");
             sw.WriteLine("D=A");
             sw.WriteLine(push_D_to_stack());
 
-            writePushPop(typeof(C_PUSH), "local", 0);
-            writePushPop(typeof(C_PUSH), "argument", 0);
-            writePushPop(typeof(C_PUSH), "this", 0);
-            writePushPop(typeof(C_PUSH), "that", 0);
+            foreach (string s in new string[] {"@LCL", "@ARG", "@THIS", "@THAT" })
+            {
+                sw.WriteLine(s);
+                sw.WriteLine("D=M");
+                sw.WriteLine(push_D_to_stack());
+            }
 
+            sw.WriteLine("@SP");
+            sw.WriteLine("D=M");
+            sw.WriteLine("@LCL");
+            sw.WriteLine("M=D");
             sw.WriteLine("@SP");
             sw.WriteLine("D=M");
             sw.WriteLine($"@{numArgs + 5}");
             sw.WriteLine("D=D-A");
             sw.WriteLine("@ARG");
             sw.WriteLine("M=D");
-            sw.WriteLine("@SP");
-            sw.WriteLine("D=M");
-            sw.WriteLine("@LCL");
-            sw.WriteLine("M=D");
+
             sw.WriteLine($"@{functionName}");
-            sw.WriteLine("0; JMP");
+            sw.WriteLine("0;JMP");
             sw.WriteLine($"({labelName})");
         }
 
@@ -135,7 +138,7 @@ namespace VMtranslator
         internal void writeFunction(string functionName, int numLocals)
         {
             sw.WriteLine($"//{functionName}.{numLocals}");
-            writeLabel(functionName);
+            sw.WriteLine($"({functionName})");
             for (int i = 0; i < numLocals; i++)
             {
                 writePushPop(typeof(C_PUSH), "constant", 0);
@@ -147,23 +150,16 @@ namespace VMtranslator
         /// </summary>
         internal void writeReturn()
         {
-            string FRAME = "R13";
-            string RET = "R14";
+            string FRAME = "@R13";
+            string RET = "@R14";
 
             sw.WriteLine("//Return");
             // FRAME=LCL
             sw.WriteLine("@LCL");
             sw.WriteLine("D=M");
-            sw.WriteLine($"@{FRAME}");
+            sw.WriteLine(FRAME);
             sw.WriteLine("M=D");
-            // RET =* (FRAME - 5)
-            sw.WriteLine("@5");
-            sw.WriteLine("D=A");
-            sw.WriteLine($"@{FRAME}");
-            sw.WriteLine("A=M-D");
-            sw.WriteLine("D=M");
-            sw.WriteLine($"@{RET}");
-            sw.WriteLine("M=D");
+
             // *ARG = pop()
             sw.WriteLine(pop_stack_to_D());
             sw.WriteLine("@ARG");
@@ -182,18 +178,29 @@ namespace VMtranslator
             int offset = 1;
             foreach (string s in new string[] { "@THAT", "@THIS", "@ARG", "@LCL" })
             {
-                sw.WriteLine($"@{FRAME}");
+                sw.WriteLine(FRAME);
                 sw.WriteLine("D=M");
                 sw.WriteLine($"@{offset}");
-                sw.WriteLine("A=D-A");
+                sw.WriteLine("D=D-A");
+                sw.WriteLine("A=D");
                 sw.WriteLine("D=M");
                 sw.WriteLine(s);
                 sw.WriteLine("M=D");
                 offset++;
             }
 
+            // RET =* (FRAME - 5)
+            sw.WriteLine(FRAME);
+            sw.WriteLine("D=M");
+            sw.WriteLine("@5");
+            sw.WriteLine("D=D-A");
+            sw.WriteLine("A=D");
+            sw.WriteLine("D=M");
+            sw.WriteLine(RET);
+            sw.WriteLine("M=D");
+
             // goto RET
-            sw.WriteLine($"@{RET}");
+            sw.WriteLine(RET);
             sw.WriteLine("A=M");
             sw.WriteLine("0;JMP");
         }
@@ -208,40 +215,33 @@ namespace VMtranslator
         internal void writeArithmetic(string command)
         {
             sw.WriteLine($"//{command}");
-            sw.WriteLine(decrement_stack_adress());
-            sw.WriteLine(set_address_stack());
+            sw.WriteLine(pop_stack_to_D());
 
             if (arithmeticAsmDict.ContainsKey(command))
             {
-                if (binaryOperatorAsmDict.ContainsKey(command))
-                {
-                    sw.WriteLine("D=M");
-                    sw.WriteLine(decrement_stack_adress());
-                }
-                
+                sw.WriteLine(decrement_stack_adress());
                 sw.WriteLine(set_address_stack());
                 sw.WriteLine(arithmeticAsmDict[command]);
-
             }
-            if (binaryConditionAsmDict.ContainsKey(command))
+            else if (binaryConditionAsmDict.ContainsKey(command))
             {
-                sw.WriteLine("D=M");
                 sw.WriteLine(decrement_stack_adress());
                 sw.WriteLine(set_address_stack());
                 sw.WriteLine("D=M-D");
-                sw.WriteLine($"@TRUE_{line}");
+
+                sw.WriteLine($"@BOOL_{line}");
                 sw.WriteLine(binaryConditionAsmDict[command]);
-                sw.WriteLine($"@FALSE_{line}");
-                sw.WriteLine("0;JMP");
-                sw.WriteLine($"(TRUE_{line})");
+
                 sw.WriteLine(set_address_stack());
-                sw.WriteLine("M=-1"); // VMはtrueを-1で返す
-                sw.WriteLine($"@END_{line}");
+                sw.WriteLine("M=0");
+                sw.WriteLine($"@ENDBOOL_{line}");
                 sw.WriteLine("0;JMP");
-                sw.WriteLine($"(FALSE_{line})");
+
+                sw.WriteLine($"(BOOL_{line})");
                 sw.WriteLine(set_address_stack());
-                sw.WriteLine("M=0"); // VMはfalseを0で返す
-                sw.WriteLine($"(END_{line})");
+                sw.WriteLine("M=-1"); // VMはtrueを0で返す
+
+                sw.WriteLine($"(ENDBOOL_{line})");
             }
 
             sw.WriteLine(increment_stack_address());

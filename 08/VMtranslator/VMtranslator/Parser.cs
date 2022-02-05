@@ -69,6 +69,9 @@ namespace VMtranslator
                         case "function":
                             commandList.Add(new C_FUNCTION(atom));
                             break;
+                        case "call":
+                            commandList.Add(new C_CALL(atom));
+                            break;
                         case "label":
                             commandList.Add(new C_LABEL(atom));
                             break;

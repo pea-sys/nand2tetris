@@ -44,11 +44,10 @@ namespace VMtranslator
             }
 
             _codeWriter = new CodeWriter(Path.ChangeExtension(args[0], ".asm"));
-
             foreach (string _file in _files)
             {
                 _parser = new Parser(_file);
-                _codeWriter.FileName = Path.GetFileName(_file);
+                _codeWriter.FileName = Path.GetFileName(_file.Replace(".vm",""));
                 while (_parser.hasMoreCommands)
                 {
                     _parser.advance();
