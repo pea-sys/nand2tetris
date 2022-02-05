@@ -15,7 +15,7 @@ namespace VMtranslator
     {
         private StreamWriter sw;
         private int line = 0;
-
+        private int call_count = 0;
 
         /// <summary>
         /// コンストラクタ
@@ -48,64 +48,85 @@ namespace VMtranslator
         {
             {"argument","ARG"},{"local","LCL"},{"this","THIS"},{"that","THAT" },{ "pointer","3"},{"temp","5"},{"constant","constant"},{"static","static"}
         };
+
+        #region "OK"
         /// <summary>
         /// VMの初期化(ブートストラップ)
         /// </summary>
         internal void writeInit()
         {
+            sw.WriteLine($"//Init");
             // VMスタックはRAM[256]から始まる
             sw.WriteLine("@256");
             sw.WriteLine("D=A");
             sw.WriteLine("@SP");
             sw.WriteLine("M=D");
             // 最初に実行を開始するVM関数はSys.init
-            //writeCall("Sys.init", 0);
+            writeCall("Sys.init", 0);
         }
         /// <summary>
         /// labelコマンドを行うアセンブリコードに変換し、書き込む
         /// </summary>
-        /// <param name="label"></param>
+        /// <param name="label">ラベル</param>
         internal void writeLabel(string label)
         {
-            sw.WriteLine($"(${FileName}.{label})");
+            sw.WriteLine($"//label {label}");
+            sw.WriteLine($"({label})");
         }
         /// <summary>
         /// gotoコマンドを行うアセンブリコードに変換し、書き込む
         /// </summary>
-        /// <param name="label"></param>
+        /// <param name="label">ラベル</param>
         internal void writeGoto(string label)
         {
-            sw.WriteLine($"@${FileName}.{label}");
+            sw.WriteLine($"//goto {label}");
+            sw.WriteLine($"@{label}");
             sw.WriteLine("0;JMP");
         }
         /// <summary>
         /// if-gotoコマンドを行うアセンブリコードに変換し、書き込む
         /// </summary>
-        /// <param name="label"></param>
+        /// <param name="label">ラベル</param>
         internal void writeIf(string label)
         {
-            sw.WriteLine(decrement_stack_adress());
-            sw.WriteLine(set_address_stack());
-            sw.WriteLine("D=M");
-            sw.WriteLine($"@${FileName}.{label}");
+            sw.WriteLine($"//if {label}");
+            sw.WriteLine(pop_stack_to_D());
+            sw.WriteLine($"@${label}");
             sw.WriteLine("D;JNE");
         }
-        /// <summary>
+                /// <summary>
         /// callコマンドを行うアセンブリコードに変換し、書き込む
         /// </summary>
-        /// <param name="functionName"></param>
+        /// <param name="functionName">関数名</param>
         /// <param name="numArgs"></param>
         internal void writeCall(string functionName, int numArgs)
         {
+            string labelName = "RETURN_" + (call_count++).ToString();
+            sw.WriteLine($"//call {functionName}.{numArgs}");
+            sw.WriteLine($"@{labelName}");
+            sw.WriteLine("D=A");
+            sw.WriteLine(push_D_to_stack());
 
-        }
-        /// <summary>
-        /// returnコマンドを行うアセンブリコードに変換し、書き込む
-        /// </summary>
-        internal void writeReturn()
-        {
+            writePushPop(typeof(C_PUSH), "local", 0);
+            writePushPop(typeof(C_PUSH), "argument", 0);
+            writePushPop(typeof(C_PUSH), "this", 0);
+            writePushPop(typeof(C_PUSH), "that", 0);
 
+            sw.WriteLine("@SP");
+            sw.WriteLine("D=M");
+            sw.WriteLine($"@{numArgs + 5}");
+            sw.WriteLine("D=D-A");
+            sw.WriteLine("@ARG");
+            sw.WriteLine("M=D");
+            sw.WriteLine("@SP");
+            sw.WriteLine("D=M");
+            sw.WriteLine("@LCL");
+            sw.WriteLine("M=D");
+            sw.WriteLine($"@{functionName}");
+            sw.WriteLine("0; JMP");
+            sw.WriteLine($"({labelName})");
         }
+
         /// <summary>
         /// functionコマンドを行うアセンブリコードに変換し、書き込む
         /// </summary>
@@ -113,8 +134,73 @@ namespace VMtranslator
         /// <param name="numLocals"></param>
         internal void writeFunction(string functionName, int numLocals)
         {
-
+            sw.WriteLine($"//{functionName}.{numLocals}");
+            writeLabel(functionName);
+            for (int i = 0; i < numLocals; i++)
+            {
+                writePushPop(typeof(C_PUSH), "constant", 0);
+            }
         }
+
+        /// <summary>
+        /// returnコマンドを行うアセンブリコードに変換し、書き込む
+        /// </summary>
+        internal void writeReturn()
+        {
+            string FRAME = "R13";
+            string RET = "R14";
+
+            sw.WriteLine("//Return");
+            // FRAME=LCL
+            sw.WriteLine("@LCL");
+            sw.WriteLine("D=M");
+            sw.WriteLine($"@{FRAME}");
+            sw.WriteLine("M=D");
+            // RET =* (FRAME - 5)
+            sw.WriteLine("@5");
+            sw.WriteLine("D=A");
+            sw.WriteLine($"@{FRAME}");
+            sw.WriteLine("A=M-D");
+            sw.WriteLine("D=M");
+            sw.WriteLine($"@{RET}");
+            sw.WriteLine("M=D");
+            // *ARG = pop()
+            sw.WriteLine(pop_stack_to_D());
+            sw.WriteLine("@ARG");
+            sw.WriteLine("A=M");
+            sw.WriteLine("M=D");
+
+            // SP = ARG + 1
+            sw.WriteLine("@ARG");
+            sw.WriteLine("D=M");
+            sw.WriteLine("@SP");
+            sw.WriteLine("M=D+1");
+            // THAT = *(FRAME-1)
+            // THIS = *(FRAME-2)
+            // ARG = *(FRAME-3)
+            // LCL = *(FRAME-4)
+            int offset = 1;
+            foreach (string s in new string[] { "@THAT", "@THIS", "@ARG", "@LCL" })
+            {
+                sw.WriteLine($"@{FRAME}");
+                sw.WriteLine("D=M");
+                sw.WriteLine($"@{offset}");
+                sw.WriteLine("A=D-A");
+                sw.WriteLine("D=M");
+                sw.WriteLine(s);
+                sw.WriteLine("M=D");
+                offset++;
+            }
+
+            // goto RET
+            sw.WriteLine($"@{RET}");
+            sw.WriteLine("A=M");
+            sw.WriteLine("0;JMP");
+        }
+        #endregion
+
+
+
         /// <summary>
         /// 与えられた算術コマンドをアセンブリコードに変換し、書き込む
         /// </summary>
@@ -227,8 +313,7 @@ namespace VMtranslator
                 {
                     sw.WriteLine("D=M");
                 }
-                sw.WriteLine(push_stack());
-                sw.WriteLine(increment_stack_address());
+                sw.WriteLine(push_D_to_stack());
             }
             else if (command == typeof(C_POP))
             {
@@ -241,6 +326,7 @@ namespace VMtranslator
                 sw.WriteLine("A=M");
                 sw.WriteLine("M=D");
             }
+            line++;
         }
         /// <summary>
         /// スタックポインタを１つ進める
@@ -262,19 +348,29 @@ namespace VMtranslator
             stringBuilder.AppendLine("M=M-1");
             return stringBuilder.ToString();
         }
+       private string pop_stack_to_D()
+        {
+            StringBuilder stringBuilder = new StringBuilder();
+            stringBuilder.AppendLine(decrement_stack_adress());
+            stringBuilder.AppendLine("A=M");
+            stringBuilder.AppendLine("D=M");
+            return stringBuilder.ToString();
+        }
+
+        private string push_D_to_stack()
+        {
+            StringBuilder stringBuilder = new StringBuilder();
+            stringBuilder.AppendLine(set_address_stack());
+            stringBuilder.AppendLine("M=D");
+            stringBuilder.AppendLine(increment_stack_address());
+            return stringBuilder.ToString();
+        }
+        
         private string set_address_stack()
         {
             StringBuilder stringBuilder = new StringBuilder();
             stringBuilder.AppendLine("@SP");
             stringBuilder.AppendLine("A=M");
-            return stringBuilder.ToString();
-        }
-        private string push_stack()
-        {
-            StringBuilder stringBuilder = new StringBuilder();
-            stringBuilder.AppendLine("@SP");
-            stringBuilder.AppendLine("A=M");
-            stringBuilder.AppendLine("M=D");
             return stringBuilder.ToString();
         }
 

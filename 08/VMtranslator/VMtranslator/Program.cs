@@ -52,7 +52,7 @@ namespace VMtranslator
                 while (_parser.hasMoreCommands)
                 {
                     _parser.advance();
-                    if (_parser.commandType != typeof(C_RETURN))
+                    if (_parser.commandType == typeof(C_RETURN))
                     {
                         _codeWriter.writeReturn();
                     }
@@ -71,7 +71,7 @@ namespace VMtranslator
                     }
                     else if (_parser.commandType == typeof(C_CALL))
                     {
-                        _codeWriter.writeFunction(_parser.arg1, _parser.arg2);
+                        _codeWriter.writeCall(_parser.arg1, _parser.arg2);
                     }
                     else if (_parser.commandType == typeof(C_IF))
                     {
