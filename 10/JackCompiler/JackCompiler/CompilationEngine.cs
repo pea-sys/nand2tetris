@@ -111,39 +111,42 @@ namespace JackCompiler
         {
             WriteTagStart("statements");
             bool variableCompile = true;
-            while (variableCompile)
+            if (tokenizer.token.tokenType == TokenType.KEYWORD)
             {
-                variableCompile = false;
+                while (variableCompile)
+                {
+                    variableCompile = false;
 
-                KeywordToken token = (KeywordToken)tokenizer.token;
-                switch (token.keywordType)
-                {
-                    case KeywordType.LET:
-                        compileLetStatement();
-                        break;
-                    case KeywordType.IF:
-                        compileIfStatement();
-                        break;
-                    case KeywordType.WHILE:
-                        compileWhileStatement();
-                        break;
-                    case KeywordType.DO:
-                        compileDoStatement();
-                        break;
-                    case KeywordType.RETURN:
-                        compileRetuenStatement();
-                        break;
-                }
-                if (tokenizer.token.tokenType == TokenType.KEYWORD)
-                {
-                    token = (KeywordToken)tokenizer.token;
-                    if ((token.keywordType == KeywordType.LET) | 
-                        (token.keywordType == KeywordType.IF) | 
-                        (token.keywordType == KeywordType.WHILE) |
-                        (token.keywordType == KeywordType.DO) |
-                        (token.keywordType == KeywordType.RETURN))
+                    KeywordToken token = (KeywordToken)tokenizer.token;
+                    switch (token.keywordType)
                     {
-                        variableCompile = true;
+                        case KeywordType.LET:
+                            compileLetStatement();
+                            break;
+                        case KeywordType.IF:
+                            compileIfStatement();
+                            break;
+                        case KeywordType.WHILE:
+                            compileWhileStatement();
+                            break;
+                        case KeywordType.DO:
+                            compileDoStatement();
+                            break;
+                        case KeywordType.RETURN:
+                            compileRetuenStatement();
+                            break;
+                    }
+                    if (tokenizer.token.tokenType == TokenType.KEYWORD)
+                    {
+                        token = (KeywordToken)tokenizer.token;
+                        if ((token.keywordType == KeywordType.LET) |
+                            (token.keywordType == KeywordType.IF) |
+                            (token.keywordType == KeywordType.WHILE) |
+                            (token.keywordType == KeywordType.DO) |
+                            (token.keywordType == KeywordType.RETURN))
+                        {
+                            variableCompile = true;
+                        }
                     }
                 }
             }
@@ -247,10 +250,6 @@ namespace JackCompiler
                 variableCompile = false;
                 if (op.Contains(tokenizer.token.raw))
                 {
-                    string values = tokenizer.token.raw;
-                    values = values.Replace(">", "&gt;");
-                    values = values.Replace("&", "&amp;");
-                    values = values.Replace("<", "&lt;");
                     compileSymbol(tokenizer.token.raw);
                     compileTerm();
                 }
@@ -485,7 +484,11 @@ namespace JackCompiler
             {
                 throw new FormatException();
             }
-            Write(GetElement(token.tokenType.ToString().ToLower(), token.symbol));
+            string values = tokenizer.token.raw;
+            values = values.Replace("&", "&amp;");
+            values = values.Replace(">", "&gt;");
+            values = values.Replace("<", "&lt;");
+            Write(GetElement(token.tokenType.ToString().ToLower(), values));
         }
         private void compileIdentifier()
         {

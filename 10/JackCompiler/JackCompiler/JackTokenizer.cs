@@ -43,11 +43,12 @@ namespace JackCompiler
                 string[] lines = sr.ReadToEnd().Split(new String[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
                
                 bool comment_multiline = false;
+                int comment_endIndex;
+                int comment_startIndex;
+                int index;
                 foreach (string line in lines)
                 {
-                    int comment_endIndex;
-                    int comment_startIndex;
-                    
+
                     sentence = line;
                     //ワンライナーコメント削除
                     comment_startIndex = sentence.IndexOf("//");
@@ -80,31 +81,32 @@ namespace JackCompiler
 
 
                     // 空白分割
-                    work_tokens = sentence.Split(new String[] { " " }, StringSplitOptions.RemoveEmptyEntries);
+                    work_tokens = sentence.Split(new String[] { " ", "\t" }, StringSplitOptions.RemoveEmptyEntries);
                     if (work_tokens.Length < 1) continue;
 
                     // ""で囲まれているものは結合する
                     string buff = string.Empty;
                     bool buffering = false;
-                    foreach ( string token in work_tokens )
+                    string work_token = string.Empty;
+                    foreach (string token in work_tokens)
                     {
-                        if (token[0] == '\"')
+                        foreach (char c in token)
                         {
-                            buff = token;
-                            buffering = true;
-                        }
-                        else if(buffering)
-                        {
-                            buff += " " + token;
-                            if (token.Contains("\""))
+                            if (c == '\"')
                             {
-                                tokens.Add(buff);
-                                buffering = false;
+                                buffering = !buffering;
+                                tokens.Add(work_token);
+                                work_token = string.Empty;
+                            }
+                            else
+                            {
+                                work_token += c;
                             }
                         }
-                        else
+                        if (!buffering)
                         {
-                            tokens.Add(token);
+                            tokens.Add(work_token);
+                            work_token = string.Empty;
                         }
                     }
                     work_tokens = tokens.ToArray();
@@ -114,18 +116,18 @@ namespace JackCompiler
                     foreach (string token in work_tokens)
                     {
                         tokens.Add("");
-                        for (comment_startIndex = 0; comment_startIndex < token.Length; comment_startIndex++)
+                        for (index = 0; index < token.Length; index++)
                         {
 
-                            if (symbolSet.Contains(token[comment_startIndex].ToString()))
+                            if (symbolSet.Contains(token[index].ToString()))
                             {
                                 tokens.Add("");
-                                tokens[tokens.Count - 1] = tokens[tokens.Count - 1] + token[comment_startIndex].ToString();
+                                tokens[tokens.Count - 1] = tokens[tokens.Count - 1] + token[index].ToString();
                                 tokens.Add("");
                             }
                             else
                             {
-                                tokens[tokens.Count - 1] = tokens[tokens.Count - 1] + token[comment_startIndex].ToString();
+                                tokens[tokens.Count - 1] = tokens[tokens.Count - 1] + token[index].ToString();
                             }
                         }
                     }
