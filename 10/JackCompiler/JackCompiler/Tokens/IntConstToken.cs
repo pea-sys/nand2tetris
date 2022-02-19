@@ -11,7 +11,7 @@ namespace JackCompiler.Tokens
         internal IntConstToken(short value)
         {
             this.raw = value.ToString();
-            this.tokenType = TokenType.INT_CONST;
+            this.tokenType = TokenType.integerConstant;
             this.intVal = value;
         }
         public TokenType tokenType { get; }

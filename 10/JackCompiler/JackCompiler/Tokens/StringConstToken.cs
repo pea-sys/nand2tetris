@@ -11,7 +11,7 @@ namespace JackCompiler.Tokens
         internal StringConstToken(string value)
         {
             this.raw = value;
-            this.tokenType = TokenType.STRING_CONST;
+            this.tokenType = TokenType.stringConstant;
             this.stringVal = value;
         }
         public TokenType tokenType { get; }

@@ -12,7 +12,7 @@ namespace JackCompiler
         KEYWORD,
         SYMBOL,
         IDENTIFIER,
-        INT_CONST,
-        STRING_CONST
+        integerConstant,
+        stringConstant
     }
 }

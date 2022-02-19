@@ -40,38 +40,92 @@ namespace JackCompiler
             short integerConstant = 0;
             using (StreamReader sr = new StreamReader(path))
             {
-                string[] lines = sr.ReadToEnd().Split(new String[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries);
-
+                string[] lines = sr.ReadToEnd().Split(new String[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+               
+                bool comment_multiline = false;
                 foreach (string line in lines)
                 {
+                    int comment_endIndex;
+                    int comment_startIndex;
+                    
                     sentence = line;
-                    //コメント削除
-                    int index = sentence.IndexOf("//");
-                    if (index != -1) sentence = sentence.Substring(0, index);
-                    index = sentence.IndexOf("/*");
-                    if (index != -1) sentence = sentence.Substring(0, index);
+                    //ワンライナーコメント削除
+                    comment_startIndex = sentence.IndexOf("//");
+                    if (comment_startIndex != -1) sentence = sentence.Substring(0, comment_startIndex);
+                    //マルチライナーコメント削除
+                    comment_endIndex = sentence.IndexOf("*/");
+                    comment_startIndex = sentence.IndexOf("/*");
+                    // /*
+                    if ((comment_startIndex != -1) & (comment_endIndex == -1))
+                    {
+                        sentence = sentence.Substring(0, comment_startIndex);
+                        comment_multiline = true;
+                    }
+                    // /* */
+                    else if ((comment_startIndex != -1) & (comment_endIndex != -1))
+                    {
+                        sentence = sentence.Substring(0, comment_startIndex);
+                    }
+                    else if ((comment_startIndex == -1) & (comment_endIndex != -1))
+                    {
+                        comment_multiline = false;
+                        continue;
+                    }
+                    if (comment_multiline)
+                    {
+                        continue;
+                    }
+
                     if (sentence.Length < 1) continue;
+
 
                     // 空白分割
                     work_tokens = sentence.Split(new String[] { " " }, StringSplitOptions.RemoveEmptyEntries);
                     if (work_tokens.Length < 1) continue;
 
+                    // ""で囲まれているものは結合する
+                    string buff = string.Empty;
+                    bool buffering = false;
+                    foreach ( string token in work_tokens )
+                    {
+                        if (token[0] == '\"')
+                        {
+                            buff = token;
+                            buffering = true;
+                        }
+                        else if(buffering)
+                        {
+                            buff += " " + token;
+                            if (token.Contains("\""))
+                            {
+                                tokens.Add(buff);
+                                buffering = false;
+                            }
+                        }
+                        else
+                        {
+                            tokens.Add(token);
+                        }
+                    }
+                    work_tokens = tokens.ToArray();
+                    tokens.Clear();
+
                     // シンボル分割
                     foreach (string token in work_tokens)
                     {
                         tokens.Add("");
-                        for (index = 0; index < token.Length; index++)
+                        for (comment_startIndex = 0; comment_startIndex < token.Length; comment_startIndex++)
                         {
 
-                            if (symbolSet.Contains(token[index].ToString()))
+                            if (symbolSet.Contains(token[comment_startIndex].ToString()))
                             {
                                 tokens.Add("");
-                                tokens[tokens.Count - 1] = tokens[tokens.Count - 1] + token[index].ToString();
+                                tokens[tokens.Count - 1] = tokens[tokens.Count - 1] + token[comment_startIndex].ToString();
                                 tokens.Add("");
                             }
                             else
                             {
-                                tokens[tokens.Count - 1] = tokens[tokens.Count - 1] + token[index].ToString();
+                                tokens[tokens.Count - 1] = tokens[tokens.Count - 1] + token[comment_startIndex].ToString();
                             }
                         }
                     }
@@ -114,12 +168,12 @@ namespace JackCompiler
         /// </summary>
         internal void advance()
         {
-            cursor++;
-            return;
+            if (hasMoreTokens)cursor++;
         }
         /// <summary>
         /// 現在のトークンを返す
         /// </summary>
-        internal IToken token { get { return tokenList[cursor]; } } 
+        internal IToken token { get { return tokenList[cursor]; } }
+        internal IToken next_token { get { return tokenList[cursor+1]; } }
     }
 }

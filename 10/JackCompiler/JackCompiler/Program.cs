@@ -13,7 +13,7 @@ namespace JackCompiler
         static void Main(string[] args)
         {
             IEnumerable<string> _files = new string[] { };
-            JackTokenizer _jackTokenizer;
+            CompilationEngine engine;
             string out_file = string.Empty;
             // 起動引数チェック
             if (args.Length != 1)
@@ -34,11 +34,11 @@ namespace JackCompiler
             {
                 throw new ArgumentException("vmファイルパスまたはvmファイルが含まれているディレクトリパスを引数に指定してください");
             }
-            foreach (string _file in _files)
+            foreach (string in_file in _files)
             {
-                _jackTokenizer = new JackTokenizer(_file);
-                out_file = _file.Replace(".jack", ".xml");
-                Debug.Print(out_file);
+                out_file = in_file.Replace(".jack", "_c.xml");
+                engine = new CompilationEngine(in_file, out_file);
+                engine.compileClass();
             }
         }
     }
