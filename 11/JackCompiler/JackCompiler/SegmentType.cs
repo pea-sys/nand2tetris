@@ -10,7 +10,7 @@ namespace JackCompiler
     {
         [StringAttibute("none")]
         NONE,
-        [StringAttibute("const")]
+        [StringAttibute("constant")]
         CONST,
         [StringAttibute("arg")]
         ARG,

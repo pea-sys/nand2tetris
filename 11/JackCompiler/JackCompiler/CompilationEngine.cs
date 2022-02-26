@@ -14,6 +14,7 @@ namespace JackCompiler
         private VMWriter vw;
         private SymbolTable st;
         private Stack<string> blockStack = new Stack<string>();
+        private string className;
         internal CompilationEngine(string in_path,string out_path)
         {
             tokenizer = new JackTokenizer(in_path);
@@ -39,8 +40,9 @@ namespace JackCompiler
             WriteTagStart("class");
             // class
             compileKeyword(KeywordType.CLASS);
+            className = tokenizer.token.raw;
             // className
-            compileIdentifier();
+            compileIdentifier(define:false, string.Empty, IdentifierKindType.NONE); // サブルーチンとクラス名は登録不要
             // '{'
             compileSymbol("{");
 
@@ -76,6 +78,7 @@ namespace JackCompiler
             WriteTagEnd();
             sw.Flush();
             sw.Close();
+            vw.Close();
         }
        
         /// <summary>
@@ -83,13 +86,29 @@ namespace JackCompiler
         /// </summary>
         private void compileClassVarDec()
         {
+            IdentifierKindType kindType = IdentifierKindType.NONE;
             WriteTagStart("classVarDec");
             // ('static' | 'field')
+            if (tokenizer.token.tokenType == TokenType.KEYWORD)
+            {
+                if (((KeywordToken)tokenizer.token).keywordType == KeywordType.STATIC)
+                {
+                    kindType = IdentifierKindType.STATIC;
+                }
+                else if (((KeywordToken)tokenizer.token).keywordType == KeywordType.FIELD)
+                {
+                    kindType = IdentifierKindType.FIELD;
+                }
+                else
+                {
+                    throw new FormatException();
+                }
+            }
             compileKeyword(KeywordType.STATIC, KeywordType.FIELD);
             // type
             compileType();
             // varName
-            compileIdentifier();
+            compileIdentifier(define:true, className, kindType);
 
             // (',' varName)* ';'
             bool variableCompile = true;
@@ -99,7 +118,7 @@ namespace JackCompiler
                 if (tokenizer.token.raw == ",")
                 {
                     compileSymbol(",");
-                    compileIdentifier();
+                    compileIdentifier(define: true, tokenizer.token.raw, IdentifierKindType.ARG);
                     variableCompile = true;
                 }
             }
@@ -162,7 +181,7 @@ namespace JackCompiler
         {
             WriteTagStart("letStatement");
             compileKeyword(KeywordType.LET);
-            compileIdentifier();
+            compileIdentifier(define: true, tokenizer.token.raw,   IdentifierKindType.FIELD);
             if (tokenizer.token.raw == "[")
             {
                 compileSymbol("[");
@@ -222,6 +241,7 @@ namespace JackCompiler
             compileSubroutineCall();
             compileSymbol(";");
             WriteTagEnd();
+
         }
         /// <summary>
         /// 'return' expression? ';'
@@ -234,15 +254,20 @@ namespace JackCompiler
             {
                 compileExpression();
             }
+            else
+            {
+                vw.writePush(SegmentType.CONST, 0);
+            }
             compileSymbol(";");
             WriteTagEnd();
+            vw.writeReturn();
         }
         /// <summary>
         /// term (op term)*
         /// </summary>
         private void compileExpression()
         {
-            string[] op = new string[] { "+", "-", "*", "/", "&", "|", "<", ">", "=" };
+            string[] ops = new string[] { "+", "-", "*", "/", "&", "|", "<", ">", "=" };
             WriteTagStart("expression");
             // term
             compileTerm();
@@ -251,12 +276,43 @@ namespace JackCompiler
             while (variableCompile)
             {
                 variableCompile = false;
-                if (op.Contains(tokenizer.token.raw))
+                if (ops.Contains(tokenizer.token.raw))
                 {
+                    string op = tokenizer.token.raw;
                     compileSymbol(tokenizer.token.raw);
                     compileTerm();
+                    switch (op)
+                    {
+                        case "+":
+                            vw.writeArithmetic(ArithmeticType.ADD);
+                            break;
+                        case "-":
+                            vw.writeArithmetic(ArithmeticType.SUB);
+                            break;
+                        case "*":
+                            vw.writeCall("Math.multiply", 2);
+                            break;
+                        case "/":
+                            vw.writeCall("Math.divide", 2);
+                            break;
+                        case "&":
+                            vw.writeArithmetic(ArithmeticType.AND);
+                            break;
+                        case "|":
+                            vw.writeArithmetic(ArithmeticType.OR);
+                            break;
+                        case "<":
+                            vw.writeArithmetic(ArithmeticType.GT);
+                            break;
+                        case ">":
+                            vw.writeArithmetic(ArithmeticType.LT);
+                            break;
+                        case "=":
+                            vw.writeArithmetic(ArithmeticType.EQ);
+                            break;
+                    }
                 }
-                if (op.Contains(tokenizer.token.raw))
+                if (ops.Contains(tokenizer.token.raw))
                 {
                     variableCompile = true;
                 }
@@ -270,33 +326,65 @@ namespace JackCompiler
         /// </summary>
         private void compileTerm()
         {
+            
             KeywordType[] keywordConstant = new KeywordType[] { KeywordType.TRUE,KeywordType.FALSE,KeywordType.NULL,KeywordType.THIS  };
             WriteTagStart("term");
             // term
             switch (tokenizer.token.tokenType)
             {
                 case TokenType.integerConstant:
+                    vw.writePush(SegmentType.CONST, int.Parse(tokenizer.token.raw));
                     compileIntVal();
                     break;
                 case TokenType.stringConstant:
+
+                    vw.writePush(SegmentType.CONST, tokenizer.token.raw.Length);
+                    vw.writeCall("String.new", 1);
+                    foreach (char c in tokenizer.token.raw)
+                    {
+                        vw.writePush(SegmentType.CONST, c);
+                        vw.writeCall("String.appendChar", 2);
+                    }
+                
                     compileStringVal();
                     break;
                 case TokenType.KEYWORD:
+                    switch (((KeywordToken)tokenizer.token).keywordType)
+                    {
+                        case KeywordType.THIS:
+                            vw.writePush(SegmentType.POINTER, 0);
+                            break;
+                        case KeywordType.TRUE:
+                            vw.writePush(SegmentType.CONST, 0);
+                            vw.writeArithmetic(ArithmeticType.NOT);
+                            break;
+                        case KeywordType.FALSE:
+                            vw.writePush(SegmentType.CONST, 0);
+                            break;
+                        case KeywordType.NULL:
+                            vw.writePush(SegmentType.CONST, 0);
+                            break;
+                    }
                     compileKeyword(keywordConstant);
                     break;
                 case TokenType.IDENTIFIER:
  
                     if (tokenizer.next_token.raw == "[")
                     {
-                        compileIdentifier();
+                        compileIdentifier(define: false, tokenizer.token.raw, IdentifierKindType.NONE);
                         compileSymbol("[");
                         compileExpression();
+
+                        vw.writeArithmetic(ArithmeticType.ADD);
+                        vw.writePop(SegmentType.POINTER, 1);
+                        vw.writePush(SegmentType.THAT, 0);
+
                         compileSymbol("]");
                     }
                     // subroutinecall
                     else if (tokenizer.next_token.raw == "(")
                     {
-                        compileIdentifier();
+                        compileIdentifier(define: false, tokenizer.token.raw, IdentifierKindType.NONE);
                         compileSymbol("(");
                         compileExpressionList();
                         compileSymbol(")");
@@ -307,7 +395,7 @@ namespace JackCompiler
                     }
                     else
                     {
-                        compileIdentifier();
+                        compileIdentifier(define: false, tokenizer.token.raw, IdentifierKindType.NONE);
                     }
                     break;
                 case TokenType.SYMBOL:
@@ -318,10 +406,17 @@ namespace JackCompiler
                         compileSymbol(")");
                     }
                     
-                    else if ((tokenizer.token.raw == "-") | (tokenizer.token.raw == "~"))
+                    else if (tokenizer.token.raw == "-")
                     {
-                        compileSymbol("-", "~");
+                        compileSymbol("-");
                         compileTerm();
+                        vw.writeArithmetic(ArithmeticType.NEG);
+                    }
+                    else if (tokenizer.token.raw == "~")
+                    {
+                        compileSymbol("~");
+                        compileTerm();
+                        vw.writeArithmetic(ArithmeticType.NOT);
                     }
                     break;
             }
@@ -332,21 +427,29 @@ namespace JackCompiler
         /// </summary>
         private void compileSubroutineCall()
         {
-            compileIdentifier();
+            string instanceName = className; 
+            string subroutineName = tokenizer.token.raw;
+            int argNum;
+            compileIdentifier(define: false, tokenizer.token.raw, IdentifierKindType.NONE);
             if (tokenizer.token.raw == ".")
             {
                 compileSymbol(".");
-                compileIdentifier();
+                instanceName = subroutineName;
+                subroutineName = tokenizer.token.raw;
+                compileIdentifier(define: false, tokenizer.token.raw, IdentifierKindType.NONE);
             }
             compileSymbol("(");
-            compileExpressionList();
+            argNum = compileExpressionList();
             compileSymbol(")");
+
+            vw.writeCall($"{instanceName}.{subroutineName}", argNum);
         }
         /// <summary>
         /// (expression (',' expression) * )?
         /// </summary>
-        private void compileExpressionList()
+        private int compileExpressionList()
         {
+            int argNum = 0;
             WriteTagStart("expressionList");
             if (tokenizer.token.raw != ")")
             {
@@ -355,16 +458,19 @@ namespace JackCompiler
                 {
                     variableCompile = false;
                     compileExpression();
+                    argNum++;
                     if (tokenizer.token.raw == ",")
                     {
                         compileSymbol(",");
                         compileExpression();
                         variableCompile = true;
+                        argNum++;
                     }
 
                 }
             }
             WriteTagEnd();
+            return argNum;
         }
        
        
@@ -373,15 +479,18 @@ namespace JackCompiler
         /// </summary>
         private void compileSubroutineDec()
         {
+            st.startSubroutine();
             WriteTagStart("subroutineDec");
             // ('constructor'| 'function' | 'method' )
+            KeywordToken token = (KeywordToken)tokenizer.token;
             compileKeyword(KeywordType.CONSTRUCTOR, KeywordType.FUNCTION, KeywordType.METHOD);
             // ('void' | type)
             if (tokenizer.token.raw == "void") { compileKeyword(KeywordType.VOID); }
             else { compileType(); }
 
             // subroutineName
-            compileIdentifier();
+            string subroutineName = tokenizer.token.raw;
+            compileIdentifier(define: true, className, IdentifierKindType.ARG);
 
             // '(' parameterList ')'
             compileSymbol("(");
@@ -389,18 +498,18 @@ namespace JackCompiler
             compileSymbol(")");
 
             //subroutineBody
-            compileSubroutineBody();
+            compileSubroutineBody(subroutineName, token);
 
             WriteTagEnd();
         }
         /// <summary>
         /// '{' varDec* statements '}'
         /// </summary>
-        private void compileSubroutineBody()
+        private void compileSubroutineBody(string subroutineName, KeywordToken subroutineToken)
         {
             WriteTagStart("subroutineBody");
             compileSymbol("{");
-
+            int local_num = 0;
             while (true)
             {
                 if (((KeywordToken)tokenizer.token).keywordType == KeywordType.VAR)
@@ -412,8 +521,28 @@ namespace JackCompiler
                     break;
                 }
             }
+            
+            vw.writeFunction($"{className}.{subroutineName}",local_num);
 
-           
+            if (subroutineToken.keywordType == KeywordType.METHOD)
+            {
+                vw.writePush(SegmentType.ARG, 0);
+                vw.writePop(SegmentType.POINTER, 0);
+            }
+            else if (subroutineToken.keywordType == KeywordType.CONSTRUCTOR)
+            {
+                vw.writePush(SegmentType.CONST, st.varCount(IdentifierKindType.FIELD));
+                vw.writeCall("Memory.alloc", 1);
+                vw.writePop(SegmentType.POINTER, 0);
+            }
+            else if (subroutineToken.keywordType == KeywordType.FUNCTION)
+            {
+
+            }
+            else
+            {
+                throw new FormatException();
+            }
 
             if (tokenizer.token.raw != "}")
             {
@@ -432,7 +561,7 @@ namespace JackCompiler
             WriteTagStart("varDec");
             compileKeyword(KeywordType.VAR);
             compileType();
-            compileIdentifier();
+            compileIdentifier(define: true, tokenizer.token.raw, IdentifierKindType.VAR);
 
             bool variableCompile = true;
             while (variableCompile)
@@ -441,7 +570,7 @@ namespace JackCompiler
                 if (tokenizer.token.raw == ",")
                 {
                     compileSymbol(",");
-                    compileIdentifier();
+                    compileIdentifier(define: true, tokenizer.token.raw, IdentifierKindType.VAR);
                 }
             }
             compileSymbol(";");
@@ -462,7 +591,7 @@ namespace JackCompiler
                         compileSymbol(",");
                     }
                     compileType();
-                    compileIdentifier();
+                    compileIdentifier(define: true, tokenizer.token.raw, IdentifierKindType.ARG);
                     variableCompile = true;
                     first = false;
                 }
@@ -477,7 +606,7 @@ namespace JackCompiler
             }
             else
             {
-                compileIdentifier();
+                compileIdentifier(define: false, tokenizer.token.raw, IdentifierKindType.NONE);
             }
         }
         private void compileSymbol(params string[] verify)
@@ -493,8 +622,13 @@ namespace JackCompiler
             values = values.Replace("<", "&lt;");
             Write(GetElement(token.tokenType.ToString().ToLower(), values));
         }
-        private void compileIdentifier()
+        private void compileIdentifier(bool define,string type, IdentifierKindType kt)
         {
+            if (define)
+            {
+                st.define(tokenizer.token.raw, type, kt);
+            }
+
             Write(GetElement(tokenizer.token.tokenType.ToString().ToLower(),
                 ((IdentifierToken)tokenizer.token).identifier));
         }

@@ -22,14 +22,14 @@ namespace JackCompiler
         /// </summary>
         internal void writePush(SegmentType type, int index)
         {
-            sw.Write($"push {type.GetStringValue()} {index}");
+            sw.WriteLine($"push {type.GetStringValue()} {index}");
         }
         /// <summary>
         /// popコマンドを書く
         /// </summary>
         internal void writePop(SegmentType type, int index)
         {
-            sw.Write($"pop {type.GetStringValue()} {index}");
+            sw.WriteLine($"pop {type.GetStringValue()} {index}");
         }
         /// <summary>
         /// 算術コマンドを書く
@@ -37,7 +37,7 @@ namespace JackCompiler
         /// <param name="type"></param>
         internal void writeArithmetic(ArithmeticType type)
         {
-            sw.Write(type.GetStringValue());
+            sw.WriteLine(type.GetStringValue());
         }
         /// <summary>
         /// labelコマンドを書く
@@ -45,7 +45,7 @@ namespace JackCompiler
         /// <param name="label"></param>
         internal void writeLabel(string label)
         {
-            sw.Write($"label {label}");
+            sw.WriteLine($"label {label}");
         }
         /// <summary>
         /// gotoコマンドを書く
@@ -53,7 +53,7 @@ namespace JackCompiler
         /// <param name="label"></param>
         internal void writeGoto(string label)
         {
-            sw.Write($"goto {label}");
+            sw.WriteLine($"goto {label}");
         }
         /// <summary>
         /// if-gotoコマンドを書く
@@ -61,7 +61,7 @@ namespace JackCompiler
         /// <param name="label"></param>
         internal void writeIf(string label)
         {
-            sw.Write($"if-goto {label}");
+            sw.WriteLine($"if-goto {label}");
         }
         /// <summary>
         /// callコマンドを書く
@@ -70,7 +70,7 @@ namespace JackCompiler
         /// <param name="nArgs"></param>
         internal void writeCall(string name ,int nArgs)
         {
-            sw.Write($"call {name} {nArgs}");
+            sw.WriteLine($"call {name} {nArgs}");
         }
         /// <summary>
         /// functionコマンドを書く
@@ -79,14 +79,14 @@ namespace JackCompiler
         /// <param name="nLocals"></param>
         internal void writeFunction(string name, int nLocals)
         {
-            sw.Write($"function {name} {nLocals}");
+            sw.WriteLine($"function {name} {nLocals}");
         }
         /// <summary>
         /// returnコマンドを書く
         /// </summary>
         internal void writeReturn()
         {
-            sw.Write($"return");
+            sw.WriteLine($"return");
         }
         /// <summary>
         /// 出力ファイルを閉じる
