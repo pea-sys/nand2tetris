@@ -12,7 +12,7 @@ namespace JackCompiler
         NONE,
         [StringAttibute("constant")]
         CONST,
-        [StringAttibute("arg")]
+        [StringAttibute("argument")]
         ARG,
         [StringAttibute("local")]
         LOCAL,

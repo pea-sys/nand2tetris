@@ -177,5 +177,6 @@ namespace JackCompiler
         /// </summary>
         internal IToken token { get { return tokenList[cursor]; } }
         internal IToken next_token { get { return tokenList[cursor+1]; } }
+
     }
 }
